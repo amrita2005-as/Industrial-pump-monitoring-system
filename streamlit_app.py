@@ -625,7 +625,7 @@ pump_html = f"""
             </defs>
         </svg>
         
-        <img src="https://i.ibb.co/KxmbVr7W/pump.png" 
+        <img src="pump.png" 
              class="pump-image"
              alt="Pump Diagram">
         
