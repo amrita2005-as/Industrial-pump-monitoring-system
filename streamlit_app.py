@@ -7,8 +7,15 @@ import numpy as np
 import plotly.graph_objects as go
 from scipy import stats
 from io import BytesIO
+import base64 
 from pathlib import Path
 
+
+def load_image_base64(image_path):
+    img_bytes = Path(image_path).read_bytes()
+    encoded = base64.b64encode(img_bytes).decode()
+    return encoded
+image_base64 = load_image_base64("pump.png")
 # =============================
 # PAGE CONFIG
 # =============================
@@ -624,8 +631,7 @@ pump_html = f"""
                 </marker>
             </defs>
         </svg>
-        
-        <img src="pump.png" 
+        <img src="data:image/png;base64,{image_base64}" 
              class="pump-image"
              alt="Pump Diagram">
         
