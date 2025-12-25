@@ -58,6 +58,84 @@ st.markdown("""
         color: inherit !important;
     }
     
+    /* Info icon styling */
+    .info-icon {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        background: rgba(52, 152, 219, 0.2);
+        border: 2px solid #3498db;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 14px;
+        font-size: 12px;
+        font-weight: bold;
+        color: #3498db !important;
+        cursor: help;
+        margin-left: 6px;
+        vertical-align: middle;
+    }
+    
+    .info-icon:hover {
+        background: rgba(52, 152, 219, 0.4);
+        transform: scale(1.1);
+    }
+    
+    /* Future data notice box */
+    .future-notice {
+        background: rgba(52, 152, 219, 0.15);
+        border: 2px solid #3498db;
+        border-left: 5px solid #3498db;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin: 1.5rem 0;
+    }
+    
+    .future-notice-title {
+        color: #3498db !important;
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+    }
+    
+    .future-notice-text {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin: 0.5rem 0;
+    }
+    
+    /* Tooltip styling */
+    .tooltip {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 300px;
+        background-color: rgba(44, 62, 80, 0.95);
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 10px;
+        position: absolute;
+        z-index: 1000;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -150px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+    }
+    
     /* Main container */
     .main {
         background-color: transparent;
@@ -317,7 +395,7 @@ st.markdown("""
 # =============================
 @st.cache_data
 def load_data():
-    df_h = pd.read_excel("pumps_2year_monthly_updated.xlsx")
+    df_h = pd.read_excel("pumps_2year_monthly.xlsx")
     df_f = pd.read_excel("predicted_pumps_all_params.xlsx")
     df_shap = pd.read_excel("shap_values.xlsx")
 
@@ -333,6 +411,10 @@ def load_data():
     return df_h, df_f, df_shap
 
 df_h, df_f, df_shap = load_data()
+
+# Determine the boundary between historical and predicted data
+historical_end_date = df_h["Month"].max()
+predicted_start_date = df_f["Month"].min()
 
 # =============================
 # ANOMALY DETECTION FUNCTION
@@ -465,6 +547,9 @@ df_f_sel = df_f[(df_f["Pump_ID"].isin(selected_pumps)) &
                 (df_f["Month"] >= start_m) & 
                 (df_f["Month"] <= end_m)]
 
+# Check if selected range includes future (predicted) data
+includes_future = end_m > historical_end_date
+
 # =============================
 # KPI SECTION WITH PUMP VISUALIZATION
 # =============================
@@ -491,16 +576,65 @@ avg_efficiency = safe_mean(df_combined, 'Efficiency_pct')
 avg_flow = safe_mean(df_combined, 'Flow_LPH')
 
 kpi_spacer1, kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_spacer2 = st.columns([0.3, 2, 2, 2, 2, 0.7])
+# Determine metric label
+def metric_type_label(start_date, end_date, df_h_sel, df_f_sel):
+    hist_start, hist_end = df_h_sel['Month'].min(), df_h_sel['Month'].max()
+    pred_start, pred_end = df_f_sel['Month'].min(), df_f_sel['Month'].max()
+    
+    if start_date >= hist_start and end_date <= hist_end:
+        return "Historical"
+    elif start_date >= pred_start and end_date <= pred_end:
+        return "Predicted"
+    else:
+        return "Combined"
+
+metric_label = metric_type_label(start_m, end_m, df_h_sel, df_f_sel)
+
+kpi_spacer1, kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_spacer2 = st.columns([0.3, 2, 2, 2, 2, 0.7])
+
+# ----------------- PEAK EFFICIENCY -----------------
 with kpi_col1:
-    st.metric("PEAK EFFICIENCY", f"{df_combined['Efficiency_pct'].max():.2f}%", delta="Combined")
+    st.markdown("""
+    <div class="tooltip">
+        <span>PEAK EFFICIENCY<span class="info-icon">i</span></span>
+        <span class="tooltiptext">The maximum efficiency value achieved across all selected pumps in the chosen time range.</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    peak_eff = df_combined['Efficiency_pct'].max()
+    st.metric("", f"{peak_eff:.2f}%", delta=metric_label, label_visibility="collapsed")
+
+# ----------------- MIN EFFICIENCY -----------------
 with kpi_col2:
-    st.metric("MIN EFFICIENCY", f"{df_combined['Efficiency_pct'].min():.2f}%", delta="Combined")
+    st.markdown("""
+    <div class="tooltip">
+        <span>MIN EFFICIENCY<span class="info-icon">i</span></span>
+        <span class="tooltiptext">The minimum efficiency value recorded across all selected pumps in the chosen time range.</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    min_eff = df_combined['Efficiency_pct'].min()
+    st.metric("", f"{min_eff:.2f}%", delta=metric_label, label_visibility="collapsed")
+
 with kpi_col3:
+    st.markdown("""
+    <div class="tooltip">
+        <span>TOTAL ENERGY<span class="info-icon">i</span></span>
+        <span class="tooltiptext">Cumulative energy consumption (in MWh) for all selected pumps over the time period. This metric helps track operational costs and carbon footprint.</span>
+    </div>
+    """, unsafe_allow_html=True)
     total_energy = safe_mean(df_combined, 'Energy_kWh', 0) * len(df_combined)
-    st.metric("TOTAL ENERGY", f"{total_energy/1000:.2f} MWh")
+    st.metric("", f"{total_energy/1000:.2f} MWh", label_visibility="collapsed")
+
 with kpi_col4:
-    total_flow = safe_mean(df_combined, 'Flow_Liters', 0) * len(df_combined)
-    st.metric("TOTAL FLOW", f"{total_flow/1e6:.2f} ML")
+    st.markdown("""
+    <div class="tooltip">
+        <span>AVERAGE FLOW RATE<span class="info-icon">i</span></span>
+        <span class="tooltiptext">Mean volumetric flow rate (Liters per Hour) across all pumps. This indicates the average fluid delivery capacity during operations.</span>
+    </div>
+    """, unsafe_allow_html=True)
+    avg_flow = safe_mean(df_combined, 'Flow_LPH', 0)
+    st.metric("", f"{avg_flow:.1f} LPH", label_visibility="collapsed")
 
 st.markdown('<div style="margin-top: 2rem;"></div>', unsafe_allow_html=True)
 
@@ -699,133 +833,198 @@ pump_html = f"""
 st.components.v1.html(pump_html, height=780)
 
 # =============================
-# PUMP COMPARISON (IF MULTIPLE PUMPS)
+# PUMP COMPARISON (IF MULTIPLE PUMPS AND FUTURE DATA)
 # =============================
 if len(selected_pumps) > 1:
-    st.markdown('<div class="section-header">PUMP COMPARISON ANALYSIS</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="comparison-card">', unsafe_allow_html=True)
-    st.markdown(f'<div class="comparison-title">{" VS ".join(selected_pumps)}</div>', unsafe_allow_html=True)
-    
-    cols = st.columns(len(selected_pumps))
-    
-    pump_data_list = []
-    for idx, pump in enumerate(selected_pumps):
-        pump_data = df_f_sel[df_f_sel['Pump_ID'] == pump]
-        pump_data_list.append(pump_data)
-        
-        with cols[idx]:
-            st.markdown(f"**{pump} Performance:**")
-            st.markdown(f"""
-            <div class="pump-stats">
-                <div class="stat-item">
-                    <div class="stat-label">Avg Efficiency</div>
-                    <div class="stat-value">{pump_data['Efficiency_pct'].mean():.2f}%</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Avg Power</div>
-                    <div class="stat-value">{pump_data['Power_kW'].mean():.2f} kW</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Avg Flow</div>
-                    <div class="stat-value">{pump_data['Flow_LPH'].mean():.0f} L/h</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Total Energy</div>
-                    <div class="stat-value">{pump_data['Energy_kWh'].sum()/1000:.2f} MWh</div>
-                </div>
+    if includes_future:
+        st.markdown("""
+        <div class="tooltip" style="display: inline-block;">
+            <div class="section-header" style="display: inline-block;">
+                PUMP COMPARISON ANALYSIS
+                <span class="info-icon">i</span>
             </div>
-            """, unsafe_allow_html=True)
-    
-    efficiencies = [(pump, df_f_sel[df_f_sel['Pump_ID'] == pump]['Efficiency_pct'].mean()) for pump in selected_pumps]
-    powers = [(pump, df_f_sel[df_f_sel['Pump_ID'] == pump]['Power_kW'].mean()) for pump in selected_pumps]
-    energies = [(pump, df_f_sel[df_f_sel['Pump_ID'] == pump]['Energy_kWh'].sum()) for pump in selected_pumps]
-    
-    best_efficiency = max(efficiencies, key=lambda x: x[1])
-    worst_efficiency = min(efficiencies, key=lambda x: x[1])
-    lowest_power = min(powers, key=lambda x: x[1])
-    highest_power = max(powers, key=lambda x: x[1])
-    
-    st.markdown(f"""
-    <div class="info-box">
-        <strong>📊 COMPARISON INSIGHTS:</strong><br>
-        • <strong>Best Efficiency:</strong> {best_efficiency[0]} at {best_efficiency[1]:.2f}% (vs. {worst_efficiency[0]} at {worst_efficiency[1]:.2f}%)<br>
-        • <strong>Most Energy Efficient:</strong> {lowest_power[0]} at {lowest_power[1]:.2f} kW average power consumption<br>
-        • <strong>Highest Power Consumption:</strong> {highest_power[0]} at {highest_power[1]:.2f} kW<br>
-        • <strong>Efficiency Range:</strong> {best_efficiency[1] - worst_efficiency[1]:.2f}% difference across all pumps<br>
-        • <strong>Power Range:</strong> {highest_power[1] - lowest_power[1]:.2f} kW difference across all pumps
+            <span class="tooltiptext">Comparative analysis of predicted performance metrics across selected pumps. This helps identify the most efficient units and optimize resource allocation for future operations.</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="comparison-card">', unsafe_allow_html=True)
+        st.markdown(f'<div class="comparison-title">{" VS ".join(selected_pumps)}</div>', unsafe_allow_html=True)
+        
+        cols = st.columns(len(selected_pumps))
+        
+        pump_data_list = []
+        for idx, pump in enumerate(selected_pumps):
+            pump_data = df_f_sel[df_f_sel['Pump_ID'] == pump]
+            pump_data_list.append(pump_data)
+            
+            with cols[idx]:
+                st.markdown(f"**{pump} Performance:**")
+                st.markdown(f"""
+                <div class="pump-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Efficiency</div>
+                        <div class="stat-value">{pump_data['Efficiency_pct'].mean():.2f}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Power</div>
+                        <div class="stat-value">{pump_data['Power_kW'].mean():.2f} kW</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Flow</div>
+                        <div class="stat-value">{pump_data['Flow_LPH'].mean():.0f} L/h</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Energy</div>
+                        <div class="stat-value">{pump_data['Energy_kWh'].sum()/1000:.2f} MWh</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        efficiencies = [(pump, df_f_sel[df_f_sel['Pump_ID'] == pump]['Efficiency_pct'].mean()) for pump in selected_pumps]
+        powers = [(pump, df_f_sel[df_f_sel['Pump_ID'] == pump]['Power_kW'].mean()) for pump in selected_pumps]
+        energies = [(pump, df_f_sel[df_f_sel['Pump_ID'] == pump]['Energy_kWh'].sum()) for pump in selected_pumps]
+        
+        best_efficiency = max(efficiencies, key=lambda x: x[1])
+        worst_efficiency = min(efficiencies, key=lambda x: x[1])
+        lowest_power = min(powers, key=lambda x: x[1])
+        highest_power = max(powers, key=lambda x: x[1])
+        
+        st.markdown(f"""
+        <div class="info-box">
+            <strong>📊 COMPARISON INSIGHTS:</strong><br>
+            • <strong>Best Efficiency:</strong> {best_efficiency[0]} at {best_efficiency[1]:.2f}% (vs. {worst_efficiency[0]} at {worst_efficiency[1]:.2f}%)<br>
+            • <strong>Most Energy Efficient:</strong> {lowest_power[0]} at {lowest_power[1]:.2f} kW average power consumption<br>
+            • <strong>Highest Power Consumption:</strong> {highest_power[0]} at {highest_power[1]:.2f} kW<br>
+            • <strong>Efficiency Range:</strong> {best_efficiency[1] - worst_efficiency[1]:.2f}% difference across all pumps<br>
+            • <strong>Power Range:</strong> {highest_power[1] - lowest_power[1]:.2f} kW difference across all pumps
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="future-notice">
+            <div class="future-notice-title">📊 PUMP COMPARISON ANALYSIS</div>
+            <p class="future-notice-text">
+                <strong>Comparative analysis is available only for future time periods.</strong>
+            </p>
+            <p class="future-notice-text">
+                <strong>Technical Rationale:</strong> Comparison analysis utilizes AI-predicted performance metrics to evaluate relative pump efficiency 
+                and identify optimization opportunities for upcoming operations. Historical data comparison serves limited value as it reflects 
+                past operating conditions without accounting for predicted trends, seasonal variations, or equipment degradation patterns. 
+                By focusing on predicted data, the analysis provides actionable insights for proactive maintenance scheduling, resource allocation, 
+                and operational planning based on forecasted performance trajectories.
+            </p>
+            <p class="future-notice-text">
+                <em>→ Please select a time range that includes dates after {historical_end_date.strftime('%b %Y')} to enable this feature.</em>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+# =============================
+# OPTIMAL OPERATING CONDITIONS (ONLY FOR FUTURE DATA)
+# =============================
+if includes_future:
+    st.markdown("""
+    <div class="tooltip" style="display: inline-block;">
+        <div class="section-header" style="display: inline-block;">
+            OPTIMAL OPERATING CONDITIONS
+            <span class="info-icon">i</span>
+        </div>
+        <span class="tooltiptext">AI-derived optimal parameter ranges based on predicted top-performing conditions. These recommendations guide operators to achieve maximum efficiency and minimize energy waste in future operations.</span>
     </div>
     """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# =============================
-# OPTIMAL OPERATING CONDITIONS
-# =============================
-st.markdown('<div class="section-header">OPTIMAL OPERATING CONDITIONS</div>', unsafe_allow_html=True)
-
-for pump in selected_pumps:
-    optimal_conditions = calculate_optimal_conditions(df_f_sel, pump)
-    
-    st.markdown(f"""
-    <div class="recommendation-box">
-        <div class="recommendation-title">⚙️ {pump} - RECOMMENDED OPERATING PARAMETERS</div>
-        <p style="margin: 0 0 0.5rem 0; font-style: italic; font-size: 0.9rem;">Based on top 10% efficiency performance data</p>
-    """, unsafe_allow_html=True)
-    
-    param_names = {
-        'Efficiency_pct': ('efficiency', '%'),
-        'Power_kW': ('power consumption', 'kW'),
-        'Flow_LPH': ('flow rate', 'L/h'),
-        'Voltage_V': ('voltage', 'V'),
-        'Current_A': ('current', 'A'),
-        'Temp_C': ('operating temperature', '°C'),
-        'Vibrations_mm_s': ('vibration levels', 'mm/s'),
-        'Frequency_Hz': ('frequency', 'Hz')
-    }
-    
-    narrative_parts = []
-    if 'Efficiency_pct' in optimal_conditions:
-        eff = optimal_conditions['Efficiency_pct']
-        narrative_parts.append(
-            f"<strong>{pump}</strong> achieves peak efficiency of <span class='optimal-value'>{eff['mean']:.2f}%</span> "
-            f"(range: {eff['min']:.2f}%-{eff['max']:.2f}%) under optimal conditions."
-        )
-    
-    other_params = []
-    for param, values in optimal_conditions.items():
-        if param != 'Efficiency_pct' and param in param_names:
-            name, unit = param_names[param]
-            other_params.append(
-                f"{name} at <span class='optimal-value'>{values['mean']:.2f} {unit}</span> "
-                f"({values['min']:.2f}-{values['max']:.2f} {unit})"
+    for pump in selected_pumps:
+        optimal_conditions = calculate_optimal_conditions(df_f_sel, pump)
+        
+        st.markdown(f"""
+        <div class="recommendation-box">
+            <div class="recommendation-title">⚙️ {pump} - RECOMMENDED OPERATING PARAMETERS</div>
+            <p style="margin: 0 0 0.5rem 0; font-style: italic; font-size: 0.9rem;">Based on top 10% efficiency performance data</p>
+        """, unsafe_allow_html=True)
+        
+        param_names = {
+            'Efficiency_pct': ('efficiency', '%'),
+            'Power_kW': ('power consumption', 'kW'),
+            'Flow_LPH': ('flow rate', 'L/h'),
+            'Voltage_V': ('voltage', 'V'),
+            'Current_A': ('current', 'A'),
+            'Temp_C': ('operating temperature', '°C'),
+            'Vibrations_mm_s': ('vibration levels', 'mm/s'),
+            'Frequency_Hz': ('frequency', 'Hz')
+        }
+        
+        narrative_parts = []
+        if 'Efficiency_pct' in optimal_conditions:
+            eff = optimal_conditions['Efficiency_pct']
+            narrative_parts.append(
+                f"<strong>{pump}</strong> achieves peak efficiency of <span class='optimal-value'>{eff['mean']:.2f}%</span> "
+                f"(range: {eff['min']:.2f}%-{eff['max']:.2f}%) under optimal conditions."
             )
-    
-    if len(other_params) > 0:
-        if len(other_params) == 1:
-            param_text = other_params[0]
-        elif len(other_params) == 2:
-            param_text = f"{other_params[0]} and {other_params[1]}"
-        else:
-            param_text = ", ".join(other_params[:-1]) + f", and {other_params[-1]}"
+        
+        other_params = []
+        for param, values in optimal_conditions.items():
+            if param != 'Efficiency_pct' and param in param_names:
+                name, unit = param_names[param]
+                other_params.append(
+                    f"{name} at <span class='optimal-value'>{values['mean']:.2f} {unit}</span> "
+                    f"({values['min']:.2f}-{values['max']:.2f} {unit})"
+                )
+        
+        if len(other_params) > 0:
+            if len(other_params) == 1:
+                param_text = other_params[0]
+            elif len(other_params) == 2:
+                param_text = f"{other_params[0]} and {other_params[1]}"
+            else:
+                param_text = ", ".join(other_params[:-1]) + f", and {other_params[-1]}"
+            
+            narrative_parts.append(
+                f" To maintain this performance, keep {param_text}."
+            )
         
         narrative_parts.append(
-            f" To maintain this performance, keep {param_text}."
+            f" These settings optimize efficiency, reduce energy costs, and extend equipment lifespan."
         )
-    
-    narrative_parts.append(
-        f" These settings optimize efficiency, reduce energy costs, and extend equipment lifespan."
-    )
-    
-    narrative = "<div class='recommendation-item'>" + " ".join(narrative_parts) + "</div>"
-    
-    st.markdown(narrative, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+        
+        narrative = "<div class='recommendation-item'>" + " ".join(narrative_parts) + "</div>"
+        
+        st.markdown(narrative, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <div class="future-notice">
+        <div class="future-notice-title">⚙️ OPTIMAL OPERATING CONDITIONS</div>
+        <p class="future-notice-text">
+            <strong>Optimal operating recommendations are available only for future time periods.</strong>
+        </p>
+        <p class="future-notice-text">
+            <strong>Technical Rationale:</strong> Optimal operating conditions are derived from machine learning models that analyze 
+            predicted performance patterns to identify parameter combinations yielding maximum efficiency. Unlike historical analysis, 
+            which merely reports past performance, predictive optimization accounts for equipment aging, seasonal load variations, 
+            and environmental factors to recommend forward-looking operational setpoints. This approach enables preventive optimization 
+            rather than reactive adjustments, allowing operators to configure systems for anticipated conditions before they occur, 
+            thereby maximizing efficiency and minimizing unplanned downtime.
+        </p>
+        <p class="future-notice-text">
+            <em>→ Please select a time range that includes dates after {historical_end_date.strftime('%b %Y')} to enable this feature.</em>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # =============================
 # GRAPHS - ADAPTIVE TO THEME
 # =============================
-st.markdown('<div class="section-header">OPERATIONAL TRENDS & ANALYSIS</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="tooltip" style="display: inline-block;">
+    <div class="section-header" style="display: inline-block;">
+        OPERATIONAL TRENDS & ANALYSIS
+        <span class="info-icon">i</span>
+    </div>
+    <span class="tooltiptext">Temporal visualization of key performance indicators showing both historical measurements and AI-predicted future values. Trends help identify performance patterns, seasonal variations, and potential degradation.</span>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown('<div class="info-box"><strong>DATA LEGEND:</strong> Historical measurements (solid) | AI-predicted values (lighter shades with diamond markers)</div>', unsafe_allow_html=True)
 
@@ -956,7 +1155,16 @@ st.plotly_chart(plot_param("Flow_LPH", "Flow Rate", "(L/h)"), use_container_widt
 # =============================
 # SHAP EXPLAINABILITY
 # =============================
-st.markdown('<div class="section-header">PERFORMANCE FACTOR ANALYSIS</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="tooltip" style="display: inline-block;">
+    <div class="section-header" style="display: inline-block;">
+        PERFORMANCE FACTOR ANALYSIS
+        <span class="info-icon">i</span>
+    </div>
+    <span class="tooltiptext">SHAP (SHapley Additive exPlanations) analysis reveals which operational parameters have the strongest influence on pump efficiency. This helps prioritize monitoring and control efforts.</span>
+</div>
+""", unsafe_allow_html=True)
+
 for pump in selected_pumps:
     pump_cols = [c for c in df_shap.columns if c.startswith(f"{pump}_")]
     if not pump_cols:
@@ -1010,7 +1218,15 @@ for pump in selected_pumps:
 # =============================
 # DOWNLOAD SECTION
 # =============================
-st.markdown('<div class="section-header">DATA EXPORT</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="tooltip" style="display: inline-block;">
+    <div class="section-header" style="display: inline-block;">
+        DATA EXPORT
+        <span class="info-icon">i</span>
+    </div>
+    <span class="tooltiptext">Download complete datasets and parameter-specific visualizations for offline analysis, reporting, and integration with external systems.</span>
+</div>
+""", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 
@@ -1058,10 +1274,16 @@ with col2:
     else:
         st.info("Parameter graphs folder 'new_param_graphs' not found")
 
-# =============================
 # ANOMALY DETECTION & ANALYSIS
-# =============================
-st.markdown('<div class="section-header">ANOMALY DETECTION & ANALYSIS</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="tooltip" style="display: inline-block;">
+    <div class="section-header" style="display: inline-block;">
+        ANOMALY DETECTION & ANALYSIS
+        <span class="info-icon">i</span>
+    </div>
+    <span class="tooltiptext">Statistical anomaly detection using IQR (Interquartile Range) method identifies data points that deviate significantly from normal operating ranges, indicating potential equipment issues or measurement errors.</span>
+</div>
+""", unsafe_allow_html=True)
 
 anomaly_summary, total_anomaly_count = analyze_anomalies(df_f_sel)
 

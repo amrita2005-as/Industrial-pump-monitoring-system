@@ -27,7 +27,6 @@ df_hist["Month"] = pd.to_datetime(df_hist["Month"])
 # Ensure new parameters exist and are numeric
 for param in NEW_PARAMS:
     if param not in df_hist.columns:
-        # Generate synthetic historical values if missing
         if param == "Voltage_V":
             df_hist[param] = np.random.uniform(9000, 12500, size=len(df_hist))
         elif param == "Current_A":
@@ -55,7 +54,6 @@ for pump in df_hist["Pump_ID"].unique():
     df_pred_pump["Month"] = pd.date_range(start=last_month + pd.DateOffset(months=1), periods=FUTURE_MONTHS, freq='MS')
     
     for target in ALL_PARAMS:
-        # Use all other parameters as features + time index
         features = [col for col in ALL_PARAMS if col != target]
         X = df_p[features].copy()
         X["time_idx"] = np.arange(len(df_p))
@@ -67,7 +65,6 @@ for pump in df_hist["Pump_ID"].unique():
         # Prepare future X
         X_future = pd.DataFrame()
         for f in features:
-            # Use last known value + small random noise
             X_future[f] = df_p[f].iloc[-1] * (1 + np.random.normal(0, 0.02, FUTURE_MONTHS))
         X_future["time_idx"] = np.arange(len(df_p), len(df_p)+FUTURE_MONTHS)
         
@@ -81,8 +78,30 @@ for pump in df_hist["Pump_ID"].unique():
     predictions.append(df_pred_pump)
 
 df_pred_all = pd.concat(predictions, ignore_index=True)
+
+# -----------------------------
+# ADD REALISTIC VARIATION (INCREASED)
+# -----------------------------
+for pump in df_pred_all["Pump_ID"].unique():
+    df_mask = df_pred_all["Pump_ID"] == pump
+    
+    # Efficiency realistic variation
+    eff = df_pred_all.loc[df_mask, "Efficiency_pct"].values
+    monthly_noise = np.random.normal(0, 7, FUTURE_MONTHS)  # stronger month-to-month noise
+    occasional_spike = np.random.choice([0, 12, -10, 15], size=FUTURE_MONTHS, p=[0.7, 0.1, 0.1, 0.1])
+    df_pred_all.loc[df_mask, "Efficiency_pct"] = np.clip(eff + monthly_noise + occasional_spike, 35, 78)
+    
+    # Power realistic variation
+    power = df_pred_all.loc[df_mask, "Power_kW"].values
+    power_noise = np.random.normal(0, 4, FUTURE_MONTHS)
+    power_spike = np.random.choice([0, 18, -12, 20], size=FUTURE_MONTHS, p=[0.75, 0.1, 0.05, 0.1])
+    df_pred_all.loc[df_mask, "Power_kW"] = np.clip(power + power_noise + power_spike, 40, None)
+
+# -----------------------------
+# SAVE PREDICTIONS
+# -----------------------------
 df_pred_all.to_excel(OUTPUT_PRED, index=False)
-print(f"Predicted data saved to {OUTPUT_PRED}")
+print(f"Predicted data with realistic variation saved to {OUTPUT_PRED}")
 
 # -----------------------------
 # SAVE SHAP EXPLANATIONS
