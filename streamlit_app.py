@@ -916,7 +916,11 @@ if len(selected_pumps) > 1:
                 and operational planning based on forecasted performance trajectories.
             </p>
             <p class="future-notice-text">
+<<<<<<< HEAD
                 <em>→ Please select a time range that includes dates after {historical_end_date.strftime('%b %Y')} to enable this feature.</em>
+=======
+                <em>→ Please select a time range that includes dates after December 2025 to enable this feature.</em>
+>>>>>>> 4e3d47fed1a4c171fad4f843299bb2520a73d1a6
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -1008,7 +1012,11 @@ else:
             thereby maximizing efficiency and minimizing unplanned downtime.
         </p>
         <p class="future-notice-text">
+<<<<<<< HEAD
             <em>→ Please select a time range that includes dates after {historical_end_date.strftime('%b %Y')} to enable this feature.</em>
+=======
+            <em>→ Please select a time range that includes dates after December 2025 to enable this feature.</em>
+>>>>>>> 4e3d47fed1a4c171fad4f843299bb2520a73d1a6
         </p>
     </div>
     """, unsafe_allow_html=True)
